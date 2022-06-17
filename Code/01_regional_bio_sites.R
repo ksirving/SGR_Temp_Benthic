@@ -18,6 +18,13 @@ load("ignore/SMC_bmi_cali.csv")
 head(bug_tax_ca)
 class(bug_tax_ca)
 
+unique(bug_tax_ca$smcshed)
+
+sgr_sites <- bug_tax_ca %>% filter(smcshed == "San Gabriel") 
+
+head(sgr_sites)
+length(unique(sgr_sites$masterid)) ## 113
+
 ## make spatial
 # Create dataframe for looking up COMIDS (here use all stations)
 bug_segs <- bug_tax_ca %>%
@@ -69,7 +76,7 @@ dim(bug_sp_sub)
 
 length(unique(bug_sp_sub$county)) ## 6
 length(unique(bug_sp_sub$COMID)) ## 923
-length(unique(bug_sp_sub$masterid)) ## 14
+length(unique(bug_sp_sub$masterid)) ## 1310
 
 ### plot
 
