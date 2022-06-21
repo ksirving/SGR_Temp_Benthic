@@ -1,23 +1,20 @@
 # Load packages
-
 library(tidyverse)
-library(purrr)
+# library(dplyr)
 library(readxl)
 library(lubridate)
-library(readxl)
 library(zoo)
-library(dplyr)
 library(tidyr)
 library(stringr)
 library(tidylog)
-library(readxl)
+
 
 
 
 setwd("input_data/Temperature/temp")
 
 temp.files <- list.files(pattern = ".xlsx") ## list all files
-View(temp.files) #name of all files folder
+# View(temp.files) #name of all files folder
 temp.files[c]
 
 temp_datax <- NULL ## create empty dataframe to cumulate into
@@ -92,12 +89,77 @@ dim(temp_names)
 
 # Metrics -----------------------------------------------------------------
 
-## look in AMR repo
+## look in SMR repo
 ## frist caluclate daily means etc
 ## then do metrics
 
+head(temp_names)
+
+sum(is.na(temp_names))
+
+df <- temp_names %>%
+  group_by(SiteName, Year, Month, Day) %>%
+  summarise(MeanTemp = mean(Temperature),
+            MinTemp = min(Temperature),
+            MaxTemp = max(Temperature))
+
+head(df)
+
 df <- df %>% 
-  select(-MinT, -MedT) %>% 
-  mutate(max_07da = zoo::rollmean(MaxT, k=7, fill = NA)) %>% 
-  mutate(mn_07da = zoo::rollmean(MeanT, k=7, fill = NA))
+  ungroup() %>%
+  mutate(max_07da = zoo::rollmean(MaxTemp, k=7, fill = NA)) %>% ## rolling daily max
+  mutate(mn_07da = zoo::rollmean(MeanTemp, k=7, fill = NA)) %>% ## rolling daily max
+  mutate(DTR = MaxTemp - MinTemp) ## diurnal temp rate
+  
+
+
+# Figures -----------------------------------------------------------------
+getwd()
+## directory for figures
+out.dir <- "/Users/katieirving/Documents/Documents - Katie’s MacBook Pro/git/SGR_Temp_Benthic/Figures/"
+
+
+## map
+
+## format date and make long
+
+unique(df_date$SiteName)
+unique(df_date$Metric)
+
+df_date <- df %>%
+  unite(col = "Date", c(Year, Month, Day), sep = "-") %>%
+  mutate(Date = as.Date(Date)) %>%
+  pivot_longer(MeanTemp:DTR, names_to = "Metric", values_to = "Temp") %>%
+  mutate(Metric = factor(Metric, levels = c("max_07da", "mn_07da", "MeanTemp", "MinTemp", "MaxTemp", "DTR"))) %>%
+  mutate(SiteName = factor(SiteName, levels = c("Benedict", "Burbank", "Compton", "Compton2", "Rattlesnake",
+                                                "Riverfront", "Steelhead", "Willow")))
+  
+str(df_date)
+
+## plot
+T1 <- ggplot(df_date, aes(y = Temp, x = Date, group = Metric, color = Metric)) +
+  geom_line() +
+  facet_wrap(~SiteName) +
+  scale_color_discrete(name = "Metric,", 
+                       labels = c("7 Day Max", "7 Day Mean","Mean Daily Temp", "Min Daily Temp",
+                                  "Max Daily Temp", "Diurnal Temp Rate")) 
+
+T1
+
+file.name1 <- paste0(out.dir, "Temp_by_Site.jpg")
+ggsave(T1, filename=file.name1, dpi=300, height=5, width=6)
+
+## plot
+T2 <- ggplot(df_date, aes(y = Temp, x = Date, group = SiteName, color = SiteName)) +
+  geom_line() +
+  facet_wrap(~Metric) 
+  # scale_color_discrete(name = "Metric,", 
+  #                      labels = c("7 Day Max", "7 Day Mean","Mean Daily Temp", "Min Daily Temp",
+  #                                 "Max Daily Temp", "Diurnal Temp Rate")) 
+
+T2
+
+file.name1 <- paste0(out.dir, "Temp_by_Metric.jpg")
+ggsave(T2, filename=file.name1, dpi=300, height=5, width=6)
+  
 
