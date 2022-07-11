@@ -55,6 +55,8 @@ head(temp_datax)
 
 # Replicates ------------------------------------------------------------
 
+load( file =  "T1_temp_data_LAR.Rdata")
+
 dim(temp_datax)
 
 ## check replicates
@@ -78,7 +80,7 @@ temp_names <- temp_datax %>%
                               SiteID == 21150068 ~ "Burbank",
                               SiteID == 21150070 ~ "Compton", 
                               SiteID == 21150074 ~ "Steelhead",
-                              SiteID == 21150075 ~ "Compton2", ## 2 x compton creek but not sure which is which
+                              SiteID == 21150075 ~ "Compton2", ## 2 x compton creek - same site, logger was lost
                               SiteID == 21150077 ~ "Rattlesnake")) 
          
 
@@ -131,15 +133,16 @@ df_date <- df %>%
   mutate(Date = as.Date(Date)) %>%
   pivot_longer(MeanTemp:DTR, names_to = "Metric", values_to = "Temp") %>%
   mutate(Metric = factor(Metric, levels = c("max_07da", "mn_07da", "MeanTemp", "MinTemp", "MaxTemp", "DTR"))) %>%
-  mutate(SiteName = factor(SiteName, levels = c("Benedict", "Burbank", "Compton", "Compton2", "Rattlesnake",
-                                                "Riverfront", "Steelhead", "Willow")))
+  mutate(SiteName = factor(SiteName, levels = c("Benedict", "Burbank", "Compton", "Rattlesnake",
+                                                "Riverfront", "Steelhead", "Compton2", "Willow")))
   
 str(df_date)
 
 ## plot
 T1 <- ggplot(df_date, aes(y = Temp, x = Date, group = Metric, color = Metric)) +
   geom_line() +
-  facet_wrap(~SiteName) +
+  facet_wrap(~SiteName, scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_color_discrete(name = "Metric,", 
                        labels = c("7 Day Max", "7 Day Mean","Mean Daily Temp", "Min Daily Temp",
                                   "Max Daily Temp", "Diurnal Temp Rate")) 
@@ -149,10 +152,17 @@ T1
 file.name1 <- paste0(out.dir, "Temp_by_Site.jpg")
 ggsave(T1, filename=file.name1, dpi=300, height=5, width=6)
 
+
+## metric labels
+levels(df_date$Metric)
+levels(df_date$Metric) <- c("7 Day Max", "7 Day Mean","Mean Daily Temp", "Min Daily Temp",
+                            "Max Daily Temp", "Diurnal Temp Rate")
+
 ## plot
 T2 <- ggplot(df_date, aes(y = Temp, x = Date, group = SiteName, color = SiteName)) +
   geom_line() +
-  facet_wrap(~Metric) 
+  facet_wrap(~Metric, scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
   # scale_color_discrete(name = "Metric,", 
   #                      labels = c("7 Day Max", "7 Day Mean","Mean Daily Temp", "Min Daily Temp",
   #                                 "Max Daily Temp", "Diurnal Temp Rate")) 
@@ -161,5 +171,51 @@ T2
 
 file.name1 <- paste0(out.dir, "Temp_by_Metric.jpg")
 ggsave(T2, filename=file.name1, dpi=300, height=5, width=6)
-  
+
+
+# Map of sites ------------------------------------------------------------
+
+setwd("input_data/Temperature")
+getwd()
+
+library(mapview)
+library(sf)
+library(leaflet)
+library(leafem)
+
+sites <- read.csv("Heal the Bay Temperature Logging Coordinates.csv")
+sites <- sites %>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)
+
+sites
+# set background basemaps:
+basemapsList <- c("Esri.WorldTopoMap", "Esri.WorldImagery",
+                  "Esri.NatGeoWorldMap",
+                  "OpenTopoMap", "OpenStreetMap", 
+                  "CartoDB.Positron", "Stamen.TopOSMFeatures")
+
+mapviewOptions(basemaps=basemapsList, fgb = FALSE)
+
+# leaflet(sites) %>%
+#   addTiles() %>%
+#   addLabelOnlyMarkers(label =  ~Site.Name, 
+#                       labelOptions = labelOptions(noHide = T,
+#                                                   direction = 'top',
+#                                                   textOnly = T))
+
+mapview(sites) %>%
+  addStaticLabels(label = sites$Site.Name,
+                  # noHide = TRUE,
+                  direction = 'top',
+                  # textOnly = TRUE,
+                  textsize = "15px")
+
+?addStaticLabels
+# this map of all sites in same HUC 12
+m1 <- mapview(sites, cex=6, col.regions="orange",
+              layer.name="Temp Loggers") 
+?mapview
+
+m1
+m1@map %>% leaflet::addMeasure(primaryLengthUnit = "meters")
 
