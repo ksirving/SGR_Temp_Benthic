@@ -80,13 +80,15 @@ temp_names <- temp_datax %>%
                               SiteID == 21150068 ~ "Burbank",
                               SiteID == 21150070 ~ "Compton", 
                               SiteID == 21150074 ~ "Steelhead",
-                              SiteID == 21150075 ~ "Compton2", ## 2 x compton creek - same site, logger was lost
+                              SiteID == 21150075 ~ "Compton", ## 2 x compton creek - same site, logger was lost
                               SiteID == 21150077 ~ "Rattlesnake")) 
          
 
 
 temp_names <- temp_names %>% distinct()
 dim(temp_names)
+
+unique(temp_names$SiteID)
 
 
 # Metrics -----------------------------------------------------------------
@@ -114,38 +116,84 @@ df <- df %>%
   mutate(DTR = MaxTemp - MinTemp) ## diurnal temp rate
   
 
+# Air temperature ---------------------------------------------------------
+
+## uplosd air temp from NOAA - LA downtown 
+airtemp <- read.csv("3028942.csv")
+
+
+dates <- unique(df_date$Date)
+
+airtemp <- airtemp %>%
+  ## format date 
+  mutate(DATE = as.Date(DATE)) %>%
+  separate(DATE, into = c("Year", "Month", "Day"), sep = '-', remove = F)  %>% ## split the date column into date, year, month, day
+  filter(DATE %in% dates) %>% ## filter to water tep dates
+  mutate( Metric = "Max Air Temp") %>% ## get mean from min max
+  select(DATE, TMAX) %>% rename( Date = DATE, AirTemp = TMAX) %>%
+  mutate(AirTemp = (AirTemp -32)*5/9) ## convert to celcius
+  
+
+head(airtemp)
+
+
+
 
 # Figures -----------------------------------------------------------------
 getwd()
 ## directory for figures
 out.dir <- "/Users/katieirving/Documents/Documents - Katie’s MacBook Pro/git/SGR_Temp_Benthic/Figures/"
 
-
+library("RColorBrewer")
+install.packages("wesanderson")
+# Load
+library(wesanderson)
 ## map
 
 ## format date and make long
 
 unique(df_date$SiteName)
 unique(df_date$Metric)
+head(df_date)
+range(df_date$Date)
 
 df_date <- df %>%
   unite(col = "Date", c(Year, Month, Day), sep = "-") %>%
   mutate(Date = as.Date(Date)) %>%
-  pivot_longer(MeanTemp:DTR, names_to = "Metric", values_to = "Temp") %>%
-  mutate(Metric = factor(Metric, levels = c("max_07da", "mn_07da", "MeanTemp", "MinTemp", "MaxTemp", "DTR"))) %>%
-  mutate(SiteName = factor(SiteName, levels = c("Benedict", "Burbank", "Compton", "Rattlesnake",
-                                                "Riverfront", "Steelhead", "Compton2", "Willow")))
+  # pivot_longer(MeanTemp:DTR, names_to = "Metric", values_to = "Temp") %>%
+  # mutate(Metric = factor(Metric, levels = c("max_07da", "mn_07da", "MeanTemp", "MinTemp", "MaxTemp", "DTR"))) %>%
+  mutate(SiteName = factor(SiteName, levels = c("Burbank", "Rattlesnake", "Benedict", "Steelhead", "Riverfront",
+                                                "Compton", "Willow")))
   
 str(df_date)
+
+
+## join air temp
+
+df_date <- full_join(airtemp, df_date, by = "Date")  %>%
+  dplyr::select( Date, SiteName, AirTemp, MeanTemp:DTR) %>%
+  pivot_longer(c(AirTemp:DTR), names_to = "Metric", values_to = "Temp") %>%
+  mutate(Metric = factor(Metric, levels = c("max_07da", "mn_07da", "MeanTemp", "MinTemp", "MaxTemp", "DTR", "AirTemp"))) %>%
+  na.omit()
+
+head(df_date)
+unique(df_date$Metric)
+
+test <- df_date %>% filter(SiteName == "Compton")
 
 ## plot
 T1 <- ggplot(df_date, aes(y = Temp, x = Date, group = Metric, color = Metric)) +
   geom_line() +
-  facet_wrap(~SiteName, scales = "free_x") +
+  # geom_line(aes(x=Date, y=AirTemp, color = "Max Daily Air Temp")) +
+  facet_wrap(~SiteName) + ## , scales = "free_x"
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_color_discrete(name = "Metric,", 
+  scale_color_brewer(palette= "Accent",
                        labels = c("7 Day Max", "7 Day Mean","Mean Daily Temp", "Min Daily Temp",
-                                  "Max Daily Temp", "Diurnal Temp Rate")) 
+                                  "Max Daily Temp", "Diurnal Temp Rate", "Max Air Temp")) +
+  # scale_color_brewer() +
+  scale_x_date(date_labels = "%b %Y")
+  # scale_color_manual(values = wes.palette(n=6, name="GrandBudapest")) 
+  # theme_dark()
 
 T1
 
@@ -156,16 +204,20 @@ ggsave(T1, filename=file.name1, dpi=300, height=5, width=6)
 ## metric labels
 levels(df_date$Metric)
 levels(df_date$Metric) <- c("7 Day Max", "7 Day Mean","Mean Daily Temp", "Min Daily Temp",
-                            "Max Daily Temp", "Diurnal Temp Rate")
+                            "Max Daily Temp", "Diurnal Temp Rate", "AirTemp")
 
 ## plot
-T2 <- ggplot(df_date, aes(y = Temp, x = Date, group = SiteName, color = SiteName)) +
+T2 <- ggplot(subset(df_date, !Metric == "AirTemp"), aes(y = Temp, x = Date, group = SiteName, color = SiteName)) +
   geom_line() +
+  # geom_line(data = airtemp, aes(x=Date, y=Temp)) +
   facet_wrap(~Metric, scales = "free_x") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
-  # scale_color_discrete(name = "Metric,", 
-  #                      labels = c("7 Day Max", "7 Day Mean","Mean Daily Temp", "Min Daily Temp",
-  #                                 "Max Daily Temp", "Diurnal Temp Rate")) 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_x_date(date_labels = "%b %Y") +
+  # scale_color_manual(breaks = c("Burbank", "Rattlesnake", "Benedict", "Steelhead", "Riverfront",
+  #                               "Compton","Willow"),
+  #                 values=c("red", "blue", "green")) 
+  scale_color_brewer(palette= 'RdYlBu', direction=-1) 
+  # theme_dark()
 
 T2
 
@@ -175,7 +227,7 @@ ggsave(T2, filename=file.name1, dpi=300, height=5, width=6)
 
 # Map of sites ------------------------------------------------------------
 
-setwd("input_data/Temperature")
+setwd("/Users/katieirving/Documents/Documents - Katie’s MacBook Pro/git/SGR_Temp_Benthic/input_data/Temperature")
 getwd()
 
 library(mapview)
@@ -218,4 +270,9 @@ m1 <- mapview(sites, cex=6, col.regions="orange",
 
 m1
 m1@map %>% leaflet::addMeasure(primaryLengthUnit = "meters")
+
+
+
+
+
 
