@@ -1,10 +1,12 @@
-﻿Site Name,Latitude,Longitude
-Rio Hondo Confluence,33.93144,-118.17586
-Compton Creek Confluence,33.84141,-118.20362
-Willow Street,33.80468,-118.20548
-Riverfront Park,33.98585,-118.17122
-Lower Compton Creek Site,33.84266,-118.2052
-Steelhead Park,34.0869,-118.22796
-Benedict Street,34.10112,-118.24217
-Rattlesnake Park,34.10824,-118.25251
-Burbank Blvd,34.17045,-118.47727
+﻿Site Name,Latitude,Longitude,Logger
+Rio Hondo Confluence,33.93144,-118.17586,21150063
+Compton Creek Confluence,33.84141,-118.20362,21150071
+Willow Street,33.80468,-118.20548,21150064
+Riverfront Park,33.98585,-118.17122,21150065
+Lower Compton Creek Site,33.84266,-118.2052,21150075 (washed away)
+,,,21150070
+Steelhead Park,34.0869,-118.22796,21150074
+Benedict Street,34.10112,-118.24217,21150073
+Rattlesnake Park,34.10824,-118.25251,21150077
+Burbank Blvd,34.17045,-118.47727,21150068
+LA Downtown,34.0236,-118.2911,Air Temperature
