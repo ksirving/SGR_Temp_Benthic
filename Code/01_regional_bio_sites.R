@@ -60,9 +60,37 @@ county <- bug_tax_ca %>%
 
 bugs2 <- left_join(bugs, county, by = "masterid")
 
+class(bugs2)
+dim(bugs2)
+
+st_write(bugs2, "output_data/01_bio_sites_all.shp", append=F)
+
 ## subset to surrounding counties - update this!!!
 sort(unique(bug_tax_ca$county))
 names(bugs2)
+
+## map of all sites in state
+# set background basemaps:
+basemapsList <- c("Esri.WorldTopoMap", "Esri.WorldImagery",
+                  "Esri.NatGeoWorldMap",
+                  "OpenTopoMap", "OpenStreetMap", 
+                  "CartoDB.Positron", "Stamen.TopOSMFeatures")
+
+mapviewOptions(basemaps=basemapsList, fgb = FALSE)
+
+
+
+# this map of all sites in same HUC 12
+m1 <- mapview(bugs2, cex=2, col.regions="orange",
+              layer.name="Bugs Stations") 
+
+
+m1
+# m1@map %>% leaflet::addMeasure(primaryLengthUnit = "meters")
+
+mapshot(m1, url = paste0(getwd(), "/output_data/01_bio_sites_all_counties_mapview.html"),
+        file = paste0(getwd(), "/ignore/01_bio_sites_all_counties_mapview.png"))
+
 
 ## define counties to select
 counties <- c("Los Angeles", "Ventura", "Orange", "Riverside", "San Bernardino")
@@ -73,6 +101,8 @@ bug_sp_sub <- bugs2 %>%
   select(masterid, latitude, longitude, county, COMID)
 
 dim(bug_sp_sub)
+
+st_write(bug_sp_sub, "output_data/01_bio_sites_surrounding_counties.shp", append=F)
 
 length(unique(bug_sp_sub$county)) ## 6
 length(unique(bug_sp_sub$COMID)) ## 923
@@ -88,7 +118,7 @@ basemapsList <- c("Esri.WorldTopoMap", "Esri.WorldImagery",
                   "OpenTopoMap", "OpenStreetMap", 
                   "CartoDB.Positron", "Stamen.TopOSMFeatures")
 
-mapviewOptions(basemaps=basemapsList, fgb = FALSE)x
+mapviewOptions(basemaps=basemapsList, fgb = FALSE)
 
 
 
@@ -98,7 +128,11 @@ m1 <- mapview(bug_sp_sub, cex=2, col.regions="orange",
   
 
 m1
-m1@map %>% leaflet::addMeasure(primaryLengthUnit = "meters")
+# m1@map %>% leaflet::addMeasure(primaryLengthUnit = "meters")
+
+mapshot(m1, url = paste0(getwd(), "/output_data/01_bio_sites_surrounding_counties_mapview.html"),
+        file = paste0(getwd(), "/ignore/01_bio_sites_surrounding_counties_mapview.png"))
+getwd()
 
 mapview()
 
