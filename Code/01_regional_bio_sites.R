@@ -5,12 +5,18 @@
 ## subset to region of interest - RB4?
 ## plot
 ## explore data in region
+## format alternative response metrics
+## - component metrics
+## - traits and capture probability
 
 library(tidylog)
 library(tidyverse)
 library(sf)
 library(mapview)
 library(nhdplusTools)
+# install_github("SCCWRP/CSCI", force=T)
+library(CSCI)     
+
 
 # CSCI --------------------------------------------------------------------
 
@@ -135,6 +141,66 @@ mapshot(m1, url = paste0(getwd(), "/output_data/01_bio_sites_surrounding_countie
 getwd()
 
 mapview()
+
+
+# CSCI component metrics --------------------------------------------------
+
+
+# Capture probabilities ---------------------------------------------------
+
+## capture probs
+load(file="/ignore/SMC_cap_prob_cali.csv")
+head(oe_ca)
+dim(oe_ca)
+## bug data
+
+bugs2 <- st_read("output_data/01_bio_sites_surrounding_counties.shp")
+head(bugs2)
+dim(bugs2)
+
+## filter capture probability to only SGR region sites
+
+capLAC <- oe_ca %>%
+  filter(masterid %in% bugs2$masterid) %>%
+  rename(TAXON = otu)
+dim(capLAC)
+
+
+
+# Traits ------------------------------------------------------------------
+
+## uplaod traits EPA
+
+traitsUSA <- read.csv("/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/git/SGR_Temp_Benthic/ignore/FreshwaterBioTraits_20100927.csv")
+head(traitsUSA)
+length(unique(traitsUSA$TAXON))
+## filter to species in capture prob df
+length(unique(capLAC$otu)) ## 335
+
+TraitsCA <- traitsUSA %>%
+  filter(TAXON %in% capLAC$otu )
+length(unique(TraitsCA$TAXON)) ## 292
+
+## get tolerance values to start with
+names(TraitsCA)
+unique(TraitsCA$TRAITS_NAME)
+
+tols <- TraitsCA %>%
+  filter(CATEGORY_NAME == "Tolerance") %>%
+  dplyr::select(TAXON:TAXON_ORDER,STUDY_LOCATION_REGION, CATEGORY_NAME:VALUE_TEXT) %>%
+  filter(TRAITS_NAME == "Thermal optima value") %>%
+  group_by(TAXON) %>% 
+  summarise(MeanValue = mean(VALUE_NUMBER)) ## quick fix, change later
+  
+
+length(unique(tols$TAXON)) ## 214 - find more!!!!
+
+### join with capture probability
+
+capTols <- inner_join(capLAC, tols, by = "TAXON") #%>%
+  # dplyr::select(-c(VALUE_TEXT, VALUE_YN, CATEGORY_DESCRIPTION))
+names(capTols)
+
 
 # check San Juan sites ----------------------------------------------------
 

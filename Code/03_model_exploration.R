@@ -4,7 +4,7 @@ library(tidylog)
 library(tidyverse)
 library(sf)
 
-
+out.dir <- "/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/git/SGR_Temp_Benthic/Figures/"
 ## workflow
 ## join csci with temp data, match years
 ## models with tolerant/senstivie taxa
@@ -89,22 +89,41 @@ write.csv(AllData, "output_data/03_bugs_temp_joined_by_year.csv")
 
 AllDataLong <- AllData %>%
   pivot_longer(Max_Wkly_Mean_StreamT:Max_Wkl_Max_StreamT_grt_30_, names_to = "Variable", values_to = "Value") %>%
-  filter(!Variable == "Max_Wkl_Max_StreamT_grt_30_")
+  filter(!Variable == "Max_Wkl_Max_StreamT_grt_30_") 
+
+unique(AllDataLong$Variable)
+supp.labs
+supp.labs <- unique(AllDataLong$Variable)
+names(supp.labs) <- c("Max Weekly Mean","Max Weekly Max", "Max Weekly Min", "Max Weekly Range", "Av Weekly Range")
 
 head(AllDataLong)
+?geom_vline
 
-ggplot(subset(AllDataLong, Variable == "Max_Wkl_Max_StreamT") , aes(y=csci, x=Value, group = Variable, color = Variable)) +
+T1 <- ggplot(AllDataLong, aes(y=csci, x=Value, group = Variable, color = Variable)) +
   geom_smooth(method = "gam") +
   geom_vline(xintercept = 30, linetype="dashed", 
-             color = "red", size=0.5) +
+             color = "red", size=0.5, show.legend = T) +
   geom_vline(xintercept = 26.667, linetype="dashed",
-             color = "blue", size=0.5) +
+             color = "blue", size=0.5, show.legend = T) +
   geom_hline(yintercept = 0.79) +
-  facet_wrap(~Variable) +
-  scale_x_continuous(name="Water Temp (°C)") 
+  facet_wrap(~Variable, labeller =labeller(supp.labs),
+             scales = "free_x") +
+  scale_x_continuous(name="Water Temp (°C)") +
+  scale_y_continuous(name = "CSCI")
 
+T1
 
+file.name1 <- paste0(out.dir, "03_csci_temp_response_GAMs.jpg")
+ggsave(T1, filename=file.name1, dpi=300, height=5, width=7.5)
 
 ### issues - 
 ## only one temp value per year, need seasonal
 ## can we get other metrics?
+
+
+# Bioassessment data ------------------------------------------------------
+
+load("/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/git/Cannabis_Eflows/input_data/SMC_phab_cali.csv")
+head(phab_ca)
+
+unique(phab_ca$analytename)
