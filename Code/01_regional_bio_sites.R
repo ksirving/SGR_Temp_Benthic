@@ -16,6 +16,7 @@ library(mapview)
 library(nhdplusTools)
 # install_github("SCCWRP/CSCI", force=T)
 library(CSCI)     
+library(lubridate)
 
 
 # CSCI --------------------------------------------------------------------
@@ -162,7 +163,8 @@ dim(bugs2)
 
 capLAC <- oe_ca %>%
   filter(masterid %in% bugs2$masterid) %>%
-  rename(TAXON = otu)
+  rename(TAXON = otu) %>%
+  drop_na(captureprob)
 dim(capLAC)
 
 
@@ -197,9 +199,145 @@ length(unique(tols$TAXON)) ## 214 - find more!!!!
 
 ### join with capture probability
 
-capTols <- inner_join(capLAC, tols, by = "TAXON") #%>%
-  # dplyr::select(-c(VALUE_TEXT, VALUE_YN, CATEGORY_DESCRIPTION))
+capTols <- inner_join(capLAC, tols, by = "TAXON") %>%
+  dplyr::select(-c(sampleid, meanobserved)) %>% distinct()
 names(capTols)
+
+head(capTols)
+
+sum(is.na(capTols$MeanValue))
+sum(is.na(capTols$captureprob))
+
+### weighted means per site - does capture probability change by date? no
+## check the calculation, should the cap prob be summed?
+
+expTax <- capTols %>%
+  mutate(weightedValues = MeanValue*captureprob) %>%
+  group_by(masterid,latitude,longitude,county, huc) %>%
+  mutate(wgtValueEx = mean(weightedValues)/mean(captureprob)) %>%
+  ungroup() %>%
+  dplyr::select(masterid, wgtValueEx) %>%
+  distinct() 
+  # summarise(wgtValueEx = weighted.mean(MeanValue,captureprob))
+
+head(expTax)
+# Taxa occurrences and observed trait value--------------------------------------------------------
+
+##  upload data - needs to be updated
+Taxa <- read.csv("ignore/all_tax_data.csv")
+head(Taxa)
+
+## how many sites do we have in capture probability and in region
+sum(unique(Taxa$stationcode) %in% unique(capTols$masterid)) ## 1184
+names(Taxa)
+## filter to regional sites ## get year by separating sampledate & remove replicates
+?separate
+taxaSub <- Taxa %>%
+  filter(stationcode %in% capTols$masterid) %>%
+  dplyr::select(stationcode, sampledate, replicate, finalid) %>%
+  separate(sampledate, into= c("Date", "Time"), sep =c(" ")) %>%
+  separate(Date, into = c("Month", "Day", "Year")) %>% dplyr::select(-Time, -Day) %>% ## get sample year
+  filter(replicate == 1) %>% ## take first replicate, can change to random later
+  rename(TAXON = finalid, masterid = stationcode)  %>% 
+  inner_join(capTols, by = c("TAXON", "masterid")) ## join with trait and cap prob data
+
+head(taxaSub)
+
+
+## observed trait value
+
+obsTax <- taxaSub %>%
+  mutate(weightedValues = MeanValue*captureprob) %>%
+  group_by(masterid,latitude,longitude,county, huc, Year) %>%
+  mutate(wgtValueObs = mean(weightedValues)/mean(captureprob)) %>%
+  ungroup() %>%
+  dplyr::select(masterid, Year, wgtValueObs) %>%
+  distinct() 
+  
+
+head(obsTax)
+names(obsTax)
+
+
+# Obs/Expected  -----------------------------------------------------------
+
+### join obs and expected
+## calculate o/e using (O-E)2/E - not sire about this calculation, check this!!!!
+
+oe <- full_join(obsTax, expTax, by = "masterid") %>%
+  ungroup() %>%
+  mutate(ObsExp = ((wgtValueObs-wgtValueEx)^2)/wgtValueEx)
+
+head(oe)
+
+
+# Format data for figures  -------------------------------------------------------------------
+
+## upload la temp
+load("/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/Projects/San_Gabriel_Temp/Data/AirTemp/Modeling/baseline_stream_temp.RData")
+str(baseline_stream_temp)
+
+## ungroup due to old r version, make all columns numbers
+baseline_stream_temp <- baseline_stream_temp %>% ungroup() %>%
+  mutate(Max_Wkl_Max_StreamT_grt_30_ = as.numeric(Max_Wkl_Max_StreamT_grt_30_))
+
+## get comids
+TempSites <- unique(baseline_stream_temp$COMID)
+
+## bugs - sites only
+
+bugSites <- st_read("output_data/01_bio_sites_surrounding_counties.shp")
+head(bugSites)
+
+## filter bug sites to temp sites
+bugTempSites <- bugSites %>%
+  filter(COMID %in% TempSites)
+
+scoresTempSites <- full_join(oe, bugTempSites, by = "masterid") %>%
+  rename(year = Year) %>% mutate(year = as.numeric(year))
+head(scoresTempSites)
+
+## join data
+AllData <- left_join(scoresTempSites, baseline_stream_temp, by = c("COMID", "year")) %>% drop_na()
+head(AllData)
+dim(AllData) ## 734
+
+
+# Figures -----------------------------------------------------------------
+
+
+## format for figures, make temp vars long, remove Max_Wkl_Max_StreamT_grt_30_
+
+AllDataLong <- AllData %>%
+  pivot_longer(Max_Wkly_Mean_StreamT:Max_Wkl_Max_StreamT_grt_30_, names_to = "Variable", values_to = "Value") %>%
+  filter(!Variable == "Max_Wkl_Max_StreamT_grt_30_") 
+
+unique(AllDataLong$Variable)
+supp.labs
+supp.labs <- unique(AllDataLong$Variable)
+names(supp.labs) <- c("Max Weekly Mean","Max Weekly Max", "Max Weekly Min", "Max Weekly Range", "Av Weekly Range")
+
+head(AllDataLong)
+# ?geom_vline
+
+T1 <- ggplot(AllDataLong, aes(y=ObsExp, x=Value, group = Variable, color = Variable)) +
+  geom_smooth(method = "glm") +
+  geom_vline(xintercept = 30, linetype="dashed", 
+             color = "red", linewidth=0.5, show.legend = T) +
+  geom_vline(xintercept = 26.667, linetype="dashed",
+             color = "blue", linewidth=0.5, show.legend = T) +
+  # geom_hline(yintercept = 0.79) +
+  facet_wrap(~Variable, labeller =labeller(supp.labs),
+             scales = "free_x") +
+  scale_x_continuous(name="Water Temp (°C)") +
+  scale_y_continuous(name = "Temp Preference (o/e)")
+
+T1
+
+file.name1 <- paste0(out.dir, "03_temp_pref_temp_response_GAMs.jpg")
+ggsave(T1, filename=file.name1, dpi=300, height=5, width=7.5)
+
+
 
 
 # check San Juan sites ----------------------------------------------------
