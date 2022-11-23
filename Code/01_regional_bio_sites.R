@@ -150,7 +150,7 @@ mapview()
 # Capture probabilities ---------------------------------------------------
 
 ## capture probs
-load(file="/ignore/SMC_cap_prob_cali.csv")
+load(file="ignore/SMC_cap_prob_cali.csv")
 head(oe_ca)
 dim(oe_ca)
 ## bug data
@@ -162,7 +162,7 @@ dim(bugs2)
 ## filter capture probability to only SGR region sites
 
 capLAC <- oe_ca %>%
-  filter(masterid %in% bugs2$masterid) %>%
+  # filter(masterid %in% bugs2$masterid) %>%
   rename(TAXON = otu) %>%
   drop_na(captureprob)
 dim(capLAC)
@@ -180,8 +180,8 @@ length(unique(traitsUSA$TAXON))
 length(unique(capLAC$otu)) ## 335
 
 TraitsCA <- traitsUSA %>%
-  filter(TAXON %in% capLAC$otu )
-length(unique(TraitsCA$TAXON)) ## 292
+  filter(TAXON %in% capLAC$TAXON )
+length(unique(TraitsCA$TAXON)) ## 266
 
 ## get tolerance values to start with
 names(TraitsCA)
@@ -195,12 +195,12 @@ tols <- TraitsCA %>%
   summarise(MeanValue = mean(VALUE_NUMBER)) ## quick fix, change later
   
 
-length(unique(tols$TAXON)) ## 214 - find more!!!!
+length(unique(tols$TAXON)) ## 207 - find more!!!!
 
 ### join with capture probability
 
-capTols <- inner_join(capLAC, tols, by = "TAXON") %>%
-  dplyr::select(-c(sampleid, meanobserved)) %>% distinct()
+capTols <- inner_join(capLAC, tols, by = "TAXON") #%>%
+  # dplyr::select(-c(sampleid)) %>% distinct()
 names(capTols)
 
 head(capTols)
@@ -211,14 +211,48 @@ sum(is.na(capTols$captureprob))
 ### weighted means per site - does capture probability change by date? no
 ## check the calculation, should the cap prob be summed?
 
-expTax <- capTols %>%
-  mutate(weightedValues = MeanValue*captureprob) %>%
-  group_by(masterid,latitude,longitude,county, huc) %>%
-  mutate(wgtValueEx = mean(weightedValues)/mean(captureprob)) %>%
-  ungroup() %>%
-  dplyr::select(masterid, wgtValueEx) %>%
-  distinct() 
+# expTax <- capTols %>%
+#   mutate(weightedValues = MeanValue*captureprob) %>%
+#   group_by(masterid,latitude,longitude,county, huc) %>%
+#   mutate(wgtValueEx = mean(weightedValues)/mean(captureprob)) %>%
+#   ungroup() %>%
+#   dplyr::select(masterid, wgtValueEx) %>%
+#   distinct() 
   # summarise(wgtValueEx = weighted.mean(MeanValue,captureprob))
+
+oe <- capTols %>% group_by(masterid,latitude,longitude,county, huc, sampleid) %>%
+  summarise(wgtValueEx = weighted.mean(MeanValue, captureprob),
+            wgtValueEx_obs = weighted.mean(MeanValue[meanobserved>0], captureprob[meanobserved>0])) %>%
+  ungroup() %>%
+  mutate(oeTemp = wgtValueEx_obs/wgtValueEx)
+
+head(oe)
+
+## temp alteration
+## statewide
+
+
+ggplot(oe, aes(x=longitude, y = latitude, color = oeTemp)) +
+  geom_point() + 
+  scale_color_viridis_c()
+
+
+T1 <- ggplot(test, aes(y=oeTemp, x=Value, group = Variable, color = Variable)) +
+  geom_smooth(method = "glm") +
+  geom_vline(xintercept = 30, linetype="dashed", 
+             color = "red", linewidth=0.5, show.legend = T) +
+  geom_vline(xintercept = 26.667, linetype="dashed",
+             color = "blue", linewidth=0.5, show.legend = T) +
+  # geom_hline(yintercept = 0.79) +
+  facet_wrap(~Variable, labeller =labeller(supp.labs),
+             scales = "free_x") +
+  scale_x_continuous(name="Water Temp (°C)") +
+  scale_y_continuous(name = "Temp Preference (o/e)")
+
+T1
+
+
+## add 
 
 head(expTax)
 # Taxa occurrences and observed trait value--------------------------------------------------------
@@ -262,10 +296,10 @@ names(obsTax)
 # Obs/Expected  -----------------------------------------------------------
 
 ### join obs and expected
-## calculate o/e using (O-E)2/E - not sire about this calculation, check this!!!!
+## calculate o/e using (O-E)2/E - not sure about this calculation, check this!!!!
 
 oe <- full_join(obsTax, expTax, by = "masterid") %>%
-  ungroup() %>%
+  ungroup() #%>%
   mutate(ObsExp = ((wgtValueObs-wgtValueEx)^2)/wgtValueEx)
 
 head(oe)
